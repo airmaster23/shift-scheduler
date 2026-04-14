@@ -229,7 +229,11 @@ def employee_login():
             emp = fetchone(conn, 'SELECT * FROM employees WHERE name = ?', (name,))
         else:
             # 既存ユーザー：PIN照合
-            if emp['pin'] != pin:
+            if emp['pin'] == '0000':
+                # 初回PIN未設定 → 入力されたPINで更新
+                execute(conn, 'UPDATE employees SET pin = ? WHERE id = ?', (pin, emp['id']))
+                conn.commit()
+            elif emp['pin'] != pin:
                 conn.close()
                 return render_template('employee_login.html', error='暗証番号が違います')
         conn.close()
