@@ -31,9 +31,16 @@ if DATABASE_URL:
             CREATE TABLE IF NOT EXISTS employees (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
+                pin TEXT NOT NULL DEFAULT '0000',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # 既存テーブルにpinカラムがない場合に追加
+        try:
+            cur.execute("ALTER TABLE employees ADD COLUMN pin TEXT NOT NULL DEFAULT '0000'")
+            conn.commit()
+        except Exception:
+            conn.rollback()
         cur.execute('''
             CREATE TABLE IF NOT EXISTS shift_requests (
                 id SERIAL PRIMARY KEY,
@@ -92,6 +99,7 @@ else:
             CREATE TABLE IF NOT EXISTS employees (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
+                pin TEXT NOT NULL DEFAULT '0000',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS shift_requests (
@@ -207,17 +215,23 @@ def index():
 def employee_login():
     if request.method == 'POST':
         name = request.form['name'].strip()
+        pin = request.form.get('pin', '').strip()
         if not name:
             return render_template('employee_login.html', error='名前を入力してください')
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            return render_template('employee_login.html', error='4桁の暗証番号を入力してください')
         conn = get_db()
         emp = fetchone(conn, 'SELECT * FROM employees WHERE name = ?', (name,))
         if not emp:
-            if DATABASE_URL:
-                execute(conn, 'INSERT INTO employees (name) VALUES (?)', (name,))
-            else:
-                execute(conn, 'INSERT INTO employees (name) VALUES (?)', (name,))
+            # 新規登録：名前+PINで登録
+            execute(conn, 'INSERT INTO employees (name, pin) VALUES (?, ?)', (name, pin))
             conn.commit()
             emp = fetchone(conn, 'SELECT * FROM employees WHERE name = ?', (name,))
+        else:
+            # 既存ユーザー：PIN照合
+            if emp['pin'] != pin:
+                conn.close()
+                return render_template('employee_login.html', error='暗証番号が違います')
         conn.close()
         session['employee_id'] = emp['id']
         session['employee_name'] = emp['name']
