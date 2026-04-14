@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}シフト管理{% endblock %}
+{% block content %}
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #E8F0FE 0%, #F0E6FF 50%, #E8F0FE 100%);">
+    <div style="width: 100%; max-width: 360px; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <div style="width: 72px; height: 72px; background: white; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(74,144,217,0.15); margin-bottom: 16px;">
+                <span style="font-size: 36px;">📅</span>
+            </div>
+            <h1 style="font-size: 24px; font-weight: 700; color: var(--gray-800); margin-bottom: 6px;">シフト管理</h1>
+            <p style="color: var(--gray-500); font-size: 14px;">希望シフトの提出・確認</p>
+        </div>
+
+        <a href="/employee" style="display: flex; align-items: center; background: white; border-radius: var(--radius); padding: 18px 20px; text-decoration: none; color: var(--gray-800); box-shadow: var(--shadow); margin-bottom: 12px; transition: box-shadow 0.2s;">
+            <div style="width: 44px; height: 44px; background: var(--primary-light); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 14px; flex-shrink: 0;">
+                <span style="font-size: 22px;">👤</span>
+            </div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 16px;">スタッフの方</div>
+                <div style="font-size: 13px; color: var(--gray-500);">希望シフトの提出・確認</div>
+            </div>
+            <span style="color: var(--gray-300); font-size: 20px;">›</span>
+        </a>
+
+        <a href="/admin" style="display: flex; align-items: center; background: white; border-radius: var(--radius); padding: 18px 20px; text-decoration: none; color: var(--gray-800); box-shadow: var(--shadow); transition: box-shadow 0.2s;">
+            <div style="width: 44px; height: 44px; background: #F0E6FF; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 14px; flex-shrink: 0;">
+                <span style="font-size: 22px;">🔧</span>
+            </div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 16px;">管理者の方</div>
+                <div style="font-size: 13px; color: var(--gray-500);">シフト管理・確定</div>
+            </div>
+            <span style="color: var(--gray-300); font-size: 20px;">›</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

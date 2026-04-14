@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}管理者ログイン{% endblock %}
+{% block content %}
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #E8F0FE 0%, #F0E6FF 50%, #E8F0FE 100%);">
+    <div style="width: 100%; max-width: 360px; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="width: 64px; height: 64px; background: white; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md); margin-bottom: 16px;">
+                <span style="font-size: 32px;">🔧</span>
+            </div>
+            <h1 style="font-size: 20px; font-weight: 700; color: var(--gray-800);">管理者ログイン</h1>
+        </div>
+        <div style="background: white; border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);">
+            {% if error %}
+            <div style="background: var(--danger-light); color: var(--danger); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 14px; margin-bottom: 16px;">{{ error }}</div>
+            {% endif %}
+            <form method="POST">
+                <div class="form-group">
+                    <input type="password" name="password" class="form-input" placeholder="パスワード" required autofocus style="font-size: 17px; padding: 14px;">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" style="padding: 14px; font-size: 16px;">ログイン</button>
+            </form>
+        </div>
+        <a href="/" style="display: block; text-align: center; margin-top: 20px; color: var(--gray-500); font-size: 13px; text-decoration: none;">← トップに戻る</a>
+    </div>
+</div>
+{% endblock %}

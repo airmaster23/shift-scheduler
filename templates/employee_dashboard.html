@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% block title %}マイシフト{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="header-title">
+        <span>📅</span> {{ name }} さん
+    </div>
+    <a href="/employee/logout" class="header-action">ログアウト</a>
+</div>
+
+<div class="container">
+    <!-- カレンダーナビ -->
+    <div class="cal-nav">
+        <a href="/employee/dashboard/{{ prev_year }}/{{ prev_month }}" class="cal-nav-btn">‹</a>
+        <span class="cal-month">{{ year }}年 {{ month }}月</span>
+        <a href="/employee/dashboard/{{ next_year }}/{{ next_month }}" class="cal-nav-btn">›</a>
+    </div>
+
+    <!-- カレンダー -->
+    <div class="cal-grid">
+        <div class="cal-dow">月</div>
+        <div class="cal-dow">火</div>
+        <div class="cal-dow">水</div>
+        <div class="cal-dow">木</div>
+        <div class="cal-dow">金</div>
+        <div class="cal-dow sat">土</div>
+        <div class="cal-dow sun">日</div>
+
+        {% for week in weeks %}
+        {% for day in week %}
+        {% if day == 0 %}
+        <div class="cal-cell empty"></div>
+        {% else %}
+        {% set date_str = '%04d-%02d-%02d' | format(year, month, day) %}
+        {% set is_past = date_str < today_str %}
+        {% set has_request = date_str in request_map %}
+        {% set has_confirmed = date_str in confirmed_map %}
+        {% set dow_idx = loop.index0 %}
+        <div class="cal-cell {% if day == today_day %}today{% endif %} {% if is_past %}past{% endif %} {% if dow_idx == 6 %}sun{% elif dow_idx == 5 %}sat{% endif %}"
+             onclick="{% if not is_past %}openShiftModal('{{ date_str }}', {{ day }}){% endif %}"
+             data-date="{{ date_str }}">
+            <span class="cal-day">{{ day }}</span>
+            {% if has_confirmed %}
+            <span class="cal-dot confirmed"></span>
+            {% elif has_request %}
+            <span class="cal-dot requested"></span>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+    </div>
+
+    <!-- 凡例 -->
+    <div style="display: flex; gap: 16px; justify-content: center; padding: 8px 16px 4px; background: white;">
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span class="cal-dot requested" style="position: static;"></span> 申請中
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span class="cal-dot confirmed" style="position: static;"></span> 確定
+        </div>
+    </div>
+
+    <!-- 今月のシフト一覧 -->
+    <div class="card">
+        <div class="card-header">今月のシフト</div>
+        {% set all_shifts = [] %}
+        {% for date_str, data in confirmed_map.items() %}
+        {% set _ = all_shifts.append({'date': date_str, 'start': data.start_time, 'end': data.end_time, 'type': 'confirmed', 'note': ''}) %}
+        {% endfor %}
+        {% for date_str, data in request_map.items() %}
+        {% if date_str not in confirmed_map %}
+        {% set _ = all_shifts.append({'date': date_str, 'start': data.start_time, 'end': data.end_time, 'type': 'requested', 'note': data.note}) %}
+        {% endif %}
+        {% endfor %}
+
+        {% if all_shifts %}
+        <ul class="shift-list">
+            {% for date_str in (confirmed_map.keys() | list + request_map.keys() | list) | unique | sort %}
+            {% if date_str in confirmed_map %}
+            {% set data = confirmed_map[date_str] %}
+            <li class="shift-item">
+                <div class="shift-color" style="background: var(--success);"></div>
+                <div class="shift-info">
+                    <div class="shift-date">{{ date_str }}</div>
+                    <div class="shift-time">{{ data.start_time }} 〜 {{ data.end_time }}</div>
+                </div>
+                <span class="shift-badge badge-confirmed">確定</span>
+            </li>
+            {% elif date_str in request_map %}
+            {% set data = request_map[date_str] %}
+            <li class="shift-item" onclick="openShiftModal('{{ date_str }}', {{ date_str.split('-')[2] | int }})">
+                <div class="shift-color" style="background: var(--warning);"></div>
+                <div class="shift-info">
+                    <div class="shift-date">{{ date_str }}</div>
+                    <div class="shift-time">{{ data.start_time }} 〜 {{ data.end_time }}</div>
+                    {% if data.note %}<div class="shift-note">{{ data.note }}</div>{% endif %}
+                </div>
+                <span class="shift-badge badge-pending">申請中</span>
+            </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <p>カレンダーの日付をタップして<br>希望シフトを提出しましょう</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="height: 24px;"></div>
+</div>
+
+<!-- シフト入力モーダル -->
+<div class="modal-overlay" id="shiftModal">
+    <div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <h3 id="modalTitle">シフト希望</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <div class="form-label">シフトパターン</div>
+                <div class="pattern-grid">
+                    {% for p in patterns %}
+                    {% if p.id != 'custom' %}
+                    <button class="pattern-btn" onclick="selectPattern('{{ p.id }}', '{{ p.start }}', '{{ p.end }}')" data-pattern="{{ p.id }}">
+                        <div class="pattern-name"><span class="pattern-color" style="background: {{ p.color }};"></span>{{ p.name }}</div>
+                        <div class="pattern-time">{{ p.start }}〜{{ p.end }}</div>
+                    </button>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="form-label">時間を指定</div>
+                <div class="time-row">
+                    <input type="time" id="startTime" class="form-input" value="09:00">
+                    <span class="time-sep">〜</span>
+                    <input type="time" id="endTime" class="form-input" value="17:00">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="form-label">備考（任意）</div>
+                <input type="text" id="shiftNote" class="form-input" placeholder="例: 午前のみ希望">
+            </div>
+
+            <input type="hidden" id="selectedDate" value="">
+            <input type="hidden" id="selectedPattern" value="custom">
+
+            <button class="btn btn-primary btn-block" onclick="submitShift()" style="margin-bottom: 8px;">
+                この日のシフト希望を提出
+            </button>
+            <button class="btn btn-danger btn-block btn-sm" id="deleteBtn" onclick="deleteShift()" style="display: none;">
+                この日の希望を取り消す
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const requestMap = {{ request_map | tojson }};
+const confirmedMap = {{ confirmed_map | tojson }};
+
+function openShiftModal(dateStr, day) {
+    if (dateStr in confirmedMap) return; // 確定済みは編集不可
+    document.getElementById('selectedDate').value = dateStr;
+    document.getElementById('modalTitle').textContent = `${dateStr.split('-')[1]}/${day} のシフト希望`;
+
+    // 既存の申請がある場合はフォームに反映
+    const deleteBtn = document.getElementById('deleteBtn');
+    if (dateStr in requestMap) {
+        const req = requestMap[dateStr];
+        document.getElementById('startTime').value = req.start_time;
+        document.getElementById('endTime').value = req.end_time;
+        document.getElementById('shiftNote').value = req.note || '';
+        deleteBtn.style.display = 'block';
+    } else {
+        document.getElementById('startTime').value = '09:00';
+        document.getElementById('endTime').value = '17:00';
+        document.getElementById('shiftNote').value = '';
+        deleteBtn.style.display = 'none';
+    }
+
+    // パターン選択リセット
+    document.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('selectedPattern').value = 'custom';
+
+    document.getElementById('shiftModal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('shiftModal').classList.remove('active');
+}
+
+function selectPattern(id, start, end) {
+    document.getElementById('startTime').value = start;
+    document.getElementById('endTime').value = end;
+    document.getElementById('selectedPattern').value = id;
+    document.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-pattern="${id}"]`).classList.add('active');
+}
+
+async function submitShift() {
+    const data = {
+        work_date: document.getElementById('selectedDate').value,
+        start_time: document.getElementById('startTime').value,
+        end_time: document.getElementById('endTime').value,
+        pattern_id: document.getElementById('selectedPattern').value,
+        note: document.getElementById('shiftNote').value
+    };
+    const res = await fetch('/employee/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    if (res.ok) location.reload();
+}
+
+async function deleteShift() {
+    if (!confirm('この日の希望を取り消しますか？')) return;
+    const data = { work_date: document.getElementById('selectedDate').value };
+    const res = await fetch('/employee/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    if (res.ok) location.reload();
+}
+
+// モーダル外タップで閉じる
+document.getElementById('shiftModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+</script>
+{% endblock %}

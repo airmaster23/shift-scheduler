@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% block title %}管理画面{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="header-title">
+        <span>🔧</span> シフト管理
+    </div>
+    <a href="/admin/logout" class="header-action">ログアウト</a>
+</div>
+
+<div class="container-wide">
+    <!-- カレンダーナビ -->
+    <div class="cal-nav" style="max-width: 480px; margin: 0 auto;">
+        <a href="/admin/dashboard/{{ prev_year }}/{{ prev_month }}" class="cal-nav-btn">‹</a>
+        <span class="cal-month">{{ year }}年 {{ month }}月</span>
+        <a href="/admin/dashboard/{{ next_year }}/{{ next_month }}" class="cal-nav-btn">›</a>
+    </div>
+
+    {% if employees %}
+    <!-- グリッド表示（Airシフト風） -->
+    <div class="admin-grid-wrapper">
+        <table class="admin-grid">
+            <thead>
+                <tr>
+                    <th class="name-col">スタッフ</th>
+                    {% for day in range(1, days_in_month + 1) %}
+                    {% set date_str = '%04d-%02d-%02d' | format(year, month, day) %}
+                    {% set dow = ['月','火','水','木','金','土','日'] %}
+                    {% set dow_idx = None %}
+                    {% for week in weeks %}
+                    {% for d in week %}
+                    {% if d == day %}
+                    {% set dow_idx = loop.index0 %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endfor %}
+                    <th class="{% if date_str == today_str %}today-col{% endif %}">
+                        <div style="font-size: 15px; font-weight: 700;">{{ day }}</div>
+                        <div style="font-size: 10px;" id="dow-{{ day }}">
+                            <!-- 曜日はJSで表示 -->
+                        </div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td class="name-col">{{ emp.name }}</td>
+                    {% for day in range(1, days_in_month + 1) %}
+                    {% set date_str = '%04d-%02d-%02d' | format(year, month, day) %}
+                    {% set key = (emp.id, date_str) %}
+                    {% set has_confirmed = key in emp_confirmed %}
+                    {% set has_request = key in emp_requests %}
+                    <td class="grid-cell"
+                        onclick="openAdminModal({{ emp.id }}, '{{ emp.name }}', '{{ date_str }}', {{ day }})"
+                        {% if has_confirmed %}style="background: var(--success-light);"
+                        {% elif has_request %}style="background: var(--warning-light);"
+                        {% endif %}>
+                        {% if has_confirmed %}
+                        {% set c = emp_confirmed[key] %}
+                        <div style="font-size: 10px; font-weight: 600; color: var(--success);">
+                            {{ c.start_time[:5] }}<br>{{ c.end_time[:5] }}
+                        </div>
+                        {% elif has_request %}
+                        {% set r = emp_requests[key] %}
+                        <div style="font-size: 10px; font-weight: 600; color: #B8730A;">
+                            {{ r.start_time[:5] }}<br>{{ r.end_time[:5] }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+
+                <!-- 人数サマリー行 -->
+                <tr class="staffing-row">
+                    <td class="name-col" style="font-size: 12px; color: var(--gray-500);">確定人数</td>
+                    {% for day in range(1, days_in_month + 1) %}
+                    {% set date_str = '%04d-%02d-%02d' | format(year, month, day) %}
+                    {% set count = daily_confirmed_count.get(date_str, 0) %}
+                    {% set req_count = daily_request_count.get(date_str, 0) %}
+                    <td class="{% if count >= 2 %}staffing-ok{% elif count + req_count >= 2 %}staffing-warn{% elif count + req_count > 0 %}staffing-danger{% endif %}">
+                        {{ count }}{% if req_count > 0 %}<span style="font-size: 9px; opacity: 0.7;">(+{{ req_count }})</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 凡例 -->
+    <div style="display: flex; gap: 16px; justify-content: center; padding: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span style="width: 14px; height: 14px; background: var(--success-light); border: 1px solid var(--success); border-radius: 3px; display: inline-block;"></span> 確定
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span style="width: 14px; height: 14px; background: var(--warning-light); border: 1px solid var(--warning); border-radius: 3px; display: inline-block;"></span> 申請中
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span style="width: 14px; height: 14px; background: var(--success-light); border-radius: 3px; display: inline-block;"></span> 人員OK
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-500);">
+            <span style="width: 14px; height: 14px; background: var(--danger-light); border-radius: 3px; display: inline-block;"></span> 人員不足
+        </div>
+    </div>
+
+    <!-- 日別詳細カード -->
+    <div style="max-width: 600px; margin: 0 auto; padding: 0 12px;">
+        <div class="card">
+            <div class="card-header">未確定の申請</div>
+            {% set pending = [] %}
+            {% for key, r in emp_requests.items() %}
+            {% if key not in emp_confirmed %}
+            {% set _ = pending.append(r) %}
+            {% endif %}
+            {% endfor %}
+            {% if pending %}
+            <ul class="shift-list">
+                {% for r in pending | sort(attribute='work_date') %}
+                <li class="shift-item">
+                    <div class="shift-color" style="background: var(--warning);"></div>
+                    <div class="shift-info">
+                        <div class="shift-date">{{ r.work_date }} - {{ r.employee_name }}</div>
+                        <div class="shift-time">{{ r.start_time }} 〜 {{ r.end_time }}</div>
+                        {% if r.note %}<div class="shift-note">{{ r.note }}</div>{% endif %}
+                    </div>
+                    <button class="btn btn-success btn-sm" onclick="confirmShift({{ r.employee_id }}, '{{ r.work_date }}', '{{ r.start_time }}', '{{ r.end_time }}')">
+                        確定
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">✅</div>
+                <p>未確定の申請はありません</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% else %}
+    <div style="max-width: 480px; margin: 0 auto; padding: 12px;">
+        <div class="card">
+            <div class="empty-state">
+                <div class="empty-icon">👥</div>
+                <p>まだスタッフが登録されていません。<br>スタッフがログインすると自動で追加されます。</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="height: 24px;"></div>
+</div>
+
+<!-- 管理者モーダル -->
+<div class="modal-overlay" id="adminModal">
+    <div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <h3 id="adminModalTitle">シフト詳細</h3>
+            <button class="modal-close" onclick="closeAdminModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="adminModalBody">
+        </div>
+    </div>
+</div>
+
+<script>
+const empRequests = {{ emp_requests | tojson }};
+const empConfirmed = {{ emp_confirmed | tojson }};
+const DOW_NAMES = ['日','月','火','水','木','金','土'];
+
+// 曜日表示
+for (let day = 1; day <= {{ days_in_month }}; day++) {
+    const d = new Date({{ year }}, {{ month - 1 }}, day);
+    const el = document.getElementById('dow-' + day);
+    if (el) {
+        const dowName = DOW_NAMES[d.getDay()];
+        el.textContent = dowName;
+        if (d.getDay() === 0) el.style.color = 'var(--danger)';
+        if (d.getDay() === 6) el.style.color = 'var(--primary)';
+    }
+}
+
+function openAdminModal(empId, empName, dateStr, day) {
+    const key = `(${empId}, '${dateStr}')`;  // Python tuple key won't work in JS
+    document.getElementById('adminModalTitle').textContent = `${empName} - ${dateStr.split('-')[1]}/${day}`;
+
+    // キーの検索方法を修正
+    let reqData = null;
+    let confData = null;
+    for (const [k, v] of Object.entries(empRequests)) {
+        if (k === `(${empId}, '${dateStr}')`) { reqData = v; break; }
+    }
+    for (const [k, v] of Object.entries(empConfirmed)) {
+        if (k === `(${empId}, '${dateStr}')`) { confData = v; break; }
+    }
+
+    let html = '';
+    if (confData) {
+        html += `<div style="background: var(--success-light); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;">
+            <div style="font-weight: 600; color: var(--success); margin-bottom: 4px;">✅ 確定済み</div>
+            <div style="font-size: 20px; font-weight: 600;">${confData.start_time} 〜 ${confData.end_time}</div>
+        </div>
+        <button class="btn btn-danger btn-block btn-sm" onclick="deleteConfirmed(${empId}, '${dateStr}')">確定を取り消す</button>`;
+    } else if (reqData) {
+        html += `<div style="background: var(--warning-light); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;">
+            <div style="font-weight: 600; color: #B8730A; margin-bottom: 4px;">⏳ 申請中</div>
+            <div style="font-size: 20px; font-weight: 600;">${reqData.start_time} 〜 ${reqData.end_time}</div>
+            ${reqData.note ? `<div style="color: var(--gray-500); font-size: 13px; margin-top: 4px;">備考: ${reqData.note}</div>` : ''}
+        </div>
+        <button class="btn btn-success btn-block" onclick="confirmShift(${empId}, '${dateStr}', '${reqData.start_time}', '${reqData.end_time}')">このシフトを確定</button>`;
+    } else {
+        html += `<div class="empty-state" style="padding: 16px;">
+            <p>この日のシフト申請はありません</p>
+        </div>`;
+    }
+
+    document.getElementById('adminModalBody').innerHTML = html;
+    document.getElementById('adminModal').classList.add('active');
+}
+
+function closeAdminModal() {
+    document.getElementById('adminModal').classList.remove('active');
+}
+
+async function confirmShift(empId, date, start, end) {
+    const res = await fetch('/admin/confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({employee_id: empId, work_date: date, start_time: start, end_time: end})
+    });
+    if (res.ok) location.reload();
+}
+
+async function deleteConfirmed(empId, date) {
+    if (!confirm('確定を取り消しますか？')) return;
+    const res = await fetch('/admin/delete_confirmed', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({employee_id: empId, work_date: date})
+    });
+    if (res.ok) location.reload();
+}
+
+document.getElementById('adminModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAdminModal();
+});
+</script>
+{% endblock %}
