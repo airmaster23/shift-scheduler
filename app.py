@@ -6,7 +6,7 @@ import calendar
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'shift-scheduler-secret-key-2024')
 
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Glittge2024!')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '1234')
 
 # データベース設定: DATABASE_URL があれば PostgreSQL、なければ SQLite
 DATABASE_URL = os.environ.get('DATABASE_URL')
